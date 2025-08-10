@@ -101,7 +101,7 @@ def send_like():
     TARGET = bytes.fromhex(encrypted_api_data)
 
     success_count = 0
-    max_success = 100
+    max_success = 120
     daily_limit_reached = False
     results = []
 
