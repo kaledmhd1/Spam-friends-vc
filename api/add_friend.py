@@ -108,6 +108,3 @@ def send_friend():
         "seconds_until_next_allowed": 86400,
         "details": results
     })
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
