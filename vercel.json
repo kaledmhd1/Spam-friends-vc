@@ -1,15 +1,9 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "api/api.py",
-      "use": "@vercel/python"
-    }
+    { "src": "api/add_friend.py", "use": "@vercel/python" }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/api.py"
-    }
+    { "src": "/add_friend", "dest": "api/add_friend.py" }
   ]
 }
