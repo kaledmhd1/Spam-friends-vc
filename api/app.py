@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import httpx
 from concurrent.futures import ThreadPoolExecutor
 import random
-import time
 import threading
 
 app = Flask(__name__)
@@ -38,16 +37,7 @@ def send_friend():
     except ValueError:
         return jsonify({"error": "player_id must be an integer"}), 400
 
-    now = time.time()
-    last_sent = last_sent_cache.get(player_id_int, 0)
-    seconds_since_last = now - last_sent
-
-    if seconds_since_last < 86400:  # 24 ساعة
-        remaining = int(86400 - seconds_since_last)
-        return jsonify({
-            "error": "Friend requests already sent within last 24 hours",
-            "seconds_until_next_allowed": remaining
-        }), 429
+    # تم إزالة شرط 24 ساعة هنا
 
     # جلب التوكنات من API خارجي
     try:
@@ -88,10 +78,8 @@ def send_friend():
 
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = []
-        # لأننا نريد 40 طلب ناجح، نشغل كل التوكنات حتى نصل للعدد المطلوب
         for token in tokens:
             futures.append(executor.submit(worker, token))
-        # ننتظر النتائج مع كسر الحلقة إذا وصلنا للعدد المطلوب
         for future in futures:
             result = future.result()
             if result:
@@ -100,12 +88,10 @@ def send_friend():
                 if requests_sent >= max_successful:
                     break
 
-    last_sent_cache[player_id_int] = now
-
     return jsonify({
         "player_id": player_id_int,
         "friend_requests_sent": requests_sent,
-        "seconds_until_next_allowed": 86400,
+        "seconds_until_next_allowed": 0,
         "details": results
     })
 
