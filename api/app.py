@@ -2,10 +2,10 @@ from flask import Flask, request, jsonify
 import httpx
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import time
 
 app = Flask(__name__)
 
-last_sent_cache = {}
 lock = threading.Lock()
 
 def send_friend_request(token, uid):
@@ -18,11 +18,11 @@ def send_friend_request(token, uid):
     try:
         resp = httpx.get(url, headers=headers, timeout=10)
         if resp.status_code == 200:
-            return {"token": token[:20] + "...", "status": "success"}
+            return True
         else:
-            return {"token": token[:20] + "...", "status": f"failed ({resp.status_code})"}
-    except httpx.RequestError as e:
-        return {"token": token[:20] + "...", "status": f"error ({e})"}
+            return False
+    except httpx.RequestError:
+        return False
 
 @app.route("/send_friend", methods=["GET"])
 def send_friend():
@@ -42,53 +42,29 @@ def send_friend():
         tokens = token_data.get("tokens", [])
         if not tokens:
             return jsonify({"error": "No tokens found"}), 500
-        # تم إزالة random.shuffle(tokens) حتى تبقى التوكنات بالترتيب
     except Exception as e:
         return jsonify({"error": f"Failed to fetch tokens: {e}"}), 500
 
     results = []
-    failed_tokens = set()
     requests_sent = 0
-    max_successful = 40  # نريد 40 طلب ناجح فقط
+    max_successful = 40
 
-    def worker(token):
-        nonlocal requests_sent
-        if token in failed_tokens:
-            return None
+    # نستمر في المحاولة حتى نصل إلى 40 نجاح
+    token_index = 0
+    while requests_sent < max_successful and token_index < len(tokens):
+        token = tokens[token_index]
+        token_index += 1
 
-        with lock:
-            if requests_sent >= max_successful:
-                return None
-
-        res = send_friend_request(token, player_id_int)
-
-        if "failed" in res["status"] or "error" in res["status"]:
-            failed_tokens.add(token)
-            return None
-
-        with lock:
-            if requests_sent < max_successful:
-                requests_sent += 1
-                return res
-            else:
-                return None
-
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        futures = []
-        for token in tokens:  # استخدام التوكنات بنفس الترتيب
-            futures.append(executor.submit(worker, token))
-        for future in futures:
-            result = future.result()
-            if result:
-                results.append(result)
-            with lock:
-                if requests_sent >= max_successful:
-                    break
+        success = send_friend_request(token, player_id_int)
+        if success:
+            requests_sent += 1
+            results.append({"token": token[:20] + "...", "status": "success"})
+        else:
+            results.append({"token": token[:20] + "...", "status": "failed"})
 
     return jsonify({
         "player_id": player_id_int,
         "friend_requests_sent": requests_sent,
-        "seconds_until_next_allowed": 0,
         "details": results
     })
 
