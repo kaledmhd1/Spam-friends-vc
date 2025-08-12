@@ -1,8 +1,7 @@
 from flask import Flask, request, jsonify
 import httpx
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-import time
 
 app = Flask(__name__)
 
@@ -17,10 +16,7 @@ def send_friend_request(token, uid):
     }
     try:
         resp = httpx.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            return True
-        else:
-            return False
+        return resp.status_code == 200
     except httpx.RequestError:
         return False
 
@@ -48,19 +44,37 @@ def send_friend():
     results = []
     requests_sent = 0
     max_successful = 40
-
-    # نستمر في المحاولة حتى نصل إلى 40 نجاح
     token_index = 0
-    while requests_sent < max_successful and token_index < len(tokens):
-        token = tokens[token_index]
-        token_index += 1
 
-        success = send_friend_request(token, player_id_int)
-        if success:
-            requests_sent += 1
-            results.append({"token": token[:20] + "...", "status": "success"})
-        else:
-            results.append({"token": token[:20] + "...", "status": "failed"})
+    with ThreadPoolExecutor(max_workers=40) as executor:
+        futures = {}
+        while requests_sent < max_successful and token_index < len(tokens):
+            # إرسال دفعة جديدة من الطلبات حتى نصل إلى 40
+            while len(futures) < 40 and token_index < len(tokens) and requests_sent + len(futures) < max_successful:
+                token = tokens[token_index]
+                token_index += 1
+                futures[executor.submit(send_friend_request, token, player_id_int)] = token
+
+            # انتظار النتائج
+            done, _ = as_completed(futures), futures.copy()
+            for future in list(futures.keys()):
+                token = futures[future]
+                try:
+                    success = future.result()
+                except Exception:
+                    success = False
+
+                with lock:
+                    if success:
+                        requests_sent += 1
+                        results.append({"token": token[:20] + "...", "status": "success"})
+                    else:
+                        results.append({"token": token[:20] + "...", "status": "failed"})
+
+                del futures[future]
+
+                if requests_sent >= max_successful:
+                    break
 
     return jsonify({
         "player_id": player_id_int,
