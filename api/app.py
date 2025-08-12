@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 import httpx
 from concurrent.futures import ThreadPoolExecutor
-import random
 import threading
 
 app = Flask(__name__)
@@ -37,15 +36,13 @@ def send_friend():
     except ValueError:
         return jsonify({"error": "player_id must be an integer"}), 400
 
-    # تم إزالة شرط 24 ساعة هنا
-
     # جلب التوكنات من API خارجي
     try:
         token_data = httpx.get("https://auto-token-bngx.onrender.com/api/get_jwt", timeout=15).json()
         tokens = token_data.get("tokens", [])
         if not tokens:
             return jsonify({"error": "No tokens found"}), 500
-        random.shuffle(tokens)  # خلط التوكنات عشوائياً
+        # تم إزالة random.shuffle(tokens) حتى تبقى التوكنات بالترتيب
     except Exception as e:
         return jsonify({"error": f"Failed to fetch tokens: {e}"}), 500
 
@@ -78,7 +75,7 @@ def send_friend():
 
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = []
-        for token in tokens:
+        for token in tokens:  # استخدام التوكنات بنفس الترتيب
             futures.append(executor.submit(worker, token))
         for future in futures:
             result = future.result()
