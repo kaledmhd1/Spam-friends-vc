@@ -86,7 +86,7 @@ def send_friend():
             else:
                 return None
 
-    with ThreadPoolExecutor(max_workers=40) as executor:
+    with ThreadPoolExecutor(max_workers=20) as executor:
         futures = []
         # لأننا نريد 40 طلب ناجح، نشغل كل التوكنات حتى نصل للعدد المطلوب
         for token in tokens:
